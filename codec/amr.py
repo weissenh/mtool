@@ -3,6 +3,7 @@ import sys
 
 from graph import Graph
 from smatch.amr import AMR;
+from collections import Counter
 
 def amr_lines(fp, alignment):
     id, snt, lines = None, None, [];
@@ -163,3 +164,115 @@ def read(fp, full = False, reify = False,
         elif snt:
             graph.add_input(snt, quiet = quiet);
         yield graph, overlay;
+
+
+def write(g: Graph, stream):
+    # todo revertible? see https://github.com/cfmrp/mtool/issues/35
+    # e.g. :wiki is lost during read in, node names kinda arbitrary for amr?
+    # Note: no alignments in output, requires unique top node
+    # todo currently simple depth-first search with no guarantee to see all
+    #  nodes and edges (will warn afterwards though if not full graph covered)
+    # todo are there any nodes/edges that need special treatment?
+    # todo: print other field info of nodes and edges?
+    if g.flavor != 2:  # alignments cannot be considered!
+        raise ValueError("AMR output "
+                         "cannot represent alignments!")
+    tops = [node for node in g.nodes if node.is_top]
+    if len(tops) != 1:  # todo: should we allow empty graph?
+        raise ValueError("Printing graph to penman style requires unique top "
+                         "node!")
+    topnode = tops[0]
+    visited_edges = set()
+    visited_node2label = dict()
+    firstcharcntr = Counter()
+    nodestr, visited_node2label, firstcharcntr = get_node_string(node=topnode,
+        visted_node2label=visited_node2label, charcntr=firstcharcntr)
+    outstr = "("
+    outstr += nodestr  # w / work-01
+    intend = " " * 5
+    outstr += get_string_for_outgoing_edges(graph=g, node=topnode,
+        intend=intend, visited_node2label=visited_node2label,
+        charcntr=firstcharcntr, visited_edges=visited_edges)
+    print(outstr + ")\n", file=stream)
+    # todo:
+    if not (visited_node2label.keys() == set(g.nodes)):  # all nodes visited
+        # todo: more helpful err msg, other Exception?
+        # unvisited_nodes = set(g.nodes) - visited_node2label.keys()
+        raise Warning("Some graph nodes weren't covered!")
+    if not (visited_edges == g.edges):
+        # todo: more helpful err msg, other Exception?
+        # unvisited_edges = g.edges - visited_edges
+        raise Warning("Some graph edges weren't covered!")
+    return
+
+
+def get_node_string(node, visted_node2label: dict, charcntr: Counter) -> tuple:
+    # (1)   w  (seen before)  or
+    # (2)   w / want-01  (not seen)  or
+    # (3)   n / name :op1 "Pierre" :op2 "Vinken"
+    # todo: make sure node.label doesn't contain  :/()  ?
+    # todo: make charcntr stored permanently in function?
+    nodestr = ""
+    if node in visted_node2label:  # seen before, get label from dictionary
+        shortlabel = visted_node2label[node]
+        nodestr = shortlabel  # e.g.  w
+    else:  # not seen before
+        # 1. get   w / want-01
+        nodelabel = node.label
+        assert (len(nodelabel) > 0)
+        firstletter = nodelabel[0].lower()  # todo: check whether allowed char?
+        shortlabel = firstletter  # e.g.   w
+        if charcntr[firstletter] != 0:
+            shortlabel += str(charcntr[firstletter])  # e.g.  w1
+        visted_node2label[node] = shortlabel
+        charcntr[firstletter] += 1
+        nodestr += shortlabel + " / " + nodelabel    # e.g.  w / want-01
+        # 2. further add property, value pairs like   :op1 "Pierre"
+        assert ((node.properties is None and node.values is None) or
+                (len(node.properties) == len(node.values)))
+        if node.properties is not None and node.values is not None:
+            for prop, value in zip(node.properties, node.values):
+                # todo when to add " " around value?
+                # :op1 "Pierre"  but  :polarity -  and  :day 29
+                # todo: make sure prop val don't contain reserved char? \"
+                nodestr += " :" + prop + " "
+                if value.isdigit() or value == "-":  # :polarity -   :day 29
+                    nodestr += value
+                else:  # :op1: "Pierre"
+                    nodestr += "\"" + value + "\""
+    return nodestr, visted_node2label, charcntr
+
+
+def get_string_for_outgoing_edges(graph: Graph, node, intend: str,
+                                  visited_node2label: dict, charcntr: Counter,
+                                  visited_edges: set) -> str:
+    # recursive function
+    assert (node in visited_node2label)
+    # todo: one line or multiline? if multiline which intend?
+    s = ""
+    # if node.isleaf():  # base case: no outgoing edges - nothing to print
+    #     # not necessary, since loop zero times executed, simply returns
+    #     return s
+    # sorted() just to have canonical order
+    for edge in sorted(node.outgoing_edges):  # recursive case
+        visited_edges.add(edge)
+        assert (edge.src == node.id)
+        target = graph.nodes[edge.tgt]  # todo check if IndexError!
+        s += "\n" + intend + " :" + edge.lab  # e.g.  :arg0
+        # todo: replace /:() in label name
+        unvisited_target = target not in visited_node2label
+        s += " "
+        nodestr, visited_node2label, firstcharcntr = get_node_string(
+            node=target, visted_node2label=visited_node2label,
+            charcntr=charcntr)
+        if unvisited_target:
+            s += "("
+        s += nodestr   # e.g.  w  or  w / want-01  or  n /name :op1 "Hans"
+        if unvisited_target:
+            # if has outgoing edges, proceed with those, then close bracket
+            s += get_string_for_outgoing_edges(
+                graph=graph, node=target, intend=intend + " " * 6,
+                visited_node2label=visited_node2label, charcntr=charcntr,
+                visited_edges=visited_edges)
+            s += ")"  # + "\n"
+    return s
