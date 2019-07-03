@@ -137,7 +137,7 @@ def main():
     sys.exit(1);
 
   if arguments.write is not None and \
-     arguments.write not in {"dot", "evaluation", "id", "json", "mrp", "txt"}:
+     arguments.write not in {"dot", "evaluation", "id", "json", "mrp", "txt", "amr"}:
     print("main.py(): invalid output format: {}; exit."
           "".format(arguments.write), file = sys.stderr);
     sys.exit(1);
@@ -294,6 +294,12 @@ def main():
       print("{}\t{}".format(graph.id, graph.input), file = arguments.output);
     elif arguments.write == "id":
       print("{}".format(graph.id), file = arguments.output);
+    elif arguments.write == "amr":
+        print("# ::id {}\n# ::snt {}\n# dummy".format(graph.id, graph.input),
+              file=arguments.output)
+        # todo: add more meta info? (time, ...)
+        # todo: check w.r.t. issue #35 revertible read <-> write?
+        codec.amr.write(graph, stream=arguments.output)
 
   if arguments.overlay:
     for graph in overlays:
