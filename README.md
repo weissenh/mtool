@@ -166,7 +166,8 @@ The `--read` and `--write` command-line options determine the input and output
 codecs to use.
 Valid input arguments include `mrp`, `amr`, `ccd`, `dm`, `eds`, `pas`, `psd`, `ud`,
 and `ucca`; note that some of these formats are only [partially supported](https://github.com/cfmrp/mtool/issues).
-The range of supported output codecs includes `mrp`, `amr`, `dot`, or `txt`.
+The range of supported output codecs includes `mrp`, `amr`, `dot`, or `txt`.  
+Note for `amr` output: currently input needs to be depth-first-search traversable from an unique top node (no unvisited nodes or edges). Moreover, no alignments (remember amr is type-2 flavor) are printed.
 
 The optional `--id`, `--i`, or `--n` options control which graph(s)
 from the input file(s) to process, selecting either by identifier, by (zero-based)
