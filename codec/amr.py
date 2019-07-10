@@ -170,13 +170,14 @@ def write(g: Graph, stream):
     # todo revertible? see https://github.com/cfmrp/mtool/issues/35
     # e.g. :wiki is lost during read in, node names kinda arbitrary for amr?
     # Note: no alignments in output, requires unique top node
-    # todo currently simple depth-first search with no guarantee to see all
-    #  nodes and edges (will warn afterwards though if not full graph covered)
     # todo are there any nodes/edges that need special treatment?
     # todo: print other field info of nodes and edges?
     if g.flavor != 2:  # alignments cannot be considered!
-        raise ValueError("AMR output "
-                         "cannot represent alignments!")
+        raise ValueError("AMR output cannot represent alignments! Graph ID = "
+                         + str(g.id))
+    g.prepare_4_dfsearch()  # invert edges where necessary
+    # this preparation can raise exception (not 1 top node, disconnected)
+    # todo: really change graph or have a copy of the graph?
     tops = [node for node in g.nodes if node.is_top]
     if len(tops) != 1:  # todo: should we allow empty graph?
         raise ValueError("Printing graph to penman style requires unique top "
@@ -194,15 +195,15 @@ def write(g: Graph, stream):
         intend=intend, visited_node2label=visited_node2label,
         charcntr=firstcharcntr, visited_edges=visited_edges)
     print(outstr + ")\n", file=stream)
-    # todo:
-    if not (visited_node2label.keys() == set(g.nodes)):  # all nodes visited
-        # todo: more helpful err msg, other Exception?
+    # todo: this shouldn't happen (since prepare4dfsearch), change to assertion
+    if not (visited_node2label.keys() == set(g.nodes)):
         # unvisited_nodes = set(g.nodes) - visited_node2label.keys()
-        raise Warning("Some graph nodes weren't covered!")
+        raise Warning("Some graph nodes weren't covered! Graph ID = " +
+                      str(g.id))
     if not (visited_edges == g.edges):
-        # todo: more helpful err msg, other Exception?
         # unvisited_edges = g.edges - visited_edges
-        raise Warning("Some graph edges weren't covered!")
+        raise Warning("Some graph edges weren't covered! Graph ID = " +
+                      str(g.id))
     return
 
 

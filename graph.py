@@ -567,3 +567,127 @@ class Graph(object):
         for edge in self.edges:
             edge.dot(stream, self.input, strings);
         print("}", file = stream);
+
+    def to_node_set(self, l: list, unconnected_value = False) -> set:
+        # get set of indices for those list entries != unconnected_value
+        # unconnected_value could also be infinity (if weight matrix)
+        return {i for i, val in enumerate(l) if val != unconnected_value}
+    
+    # todo what to do with already inverted edges? uninvert?
+    def get_reachability_matrix(self) -> list:
+        """Get boolean reachability matrix as list of list:  rm[from][to]"""
+        # compute  reachability matrix: O(V^3) time, O(V^2) space
+        # todo use numpy matrix instead?
+        rm = list()  # reachability matrix
+        unreachable_val = False
+        nodesize = len(self.nodes)
+        for index in range(nodesize):  # initialize reachability matrix
+            l = list()
+            for index2 in range(nodesize):
+                val = unreachable_val
+                if index == index2:
+                    val = True  # every node is reachable from itself
+                l.append(val)
+            rm.append(l)
+        for edge in self.edges:  # for each edge, add reachability
+            src = edge.src  # is a Node.id
+            tgt = edge.tgt
+            rm[src][tgt] = True  # or use weight
+        for k in range(nodesize):  # todo: check it works, understand
+            for i in range(nodesize):  # transitive closure for reachability
+                for j in range(nodesize):  # O(|V|^3) run time
+                    # if rm[i][j] > rm[i][k] + rm[k][j]:
+                    #   rm[i][j] = rm[i][k] + rm[k][j]
+                    rm[i][j] = rm[i][j] or (rm[i][k] and rm[k][j])
+        return rm
+    
+    # todo what to do with already inverted edges? univert?
+    def prepare_4_dfsearch(self):
+        """
+        Prepare for depth first search (needed for AMR write in penman format)
+        
+        Inverts edges where necessary to allow easy depth first search
+        through the graph covering all nodes (if graph connected)
+        """
+        # todo: clean up code, make more efficient,
+        # todo needs more testing!
+        # todo: maybe make this a bool function: success or not ?
+        # 1. compute  reachability matrix: O(V^3) time, O(V^2) space
+        rm = self.get_reachability_matrix()
+        nodesize = len(self.nodes)
+        tops = [node for node in self.nodes if node.is_top]
+        if len(tops) != 1:  # todo: should we allow empty graph?
+            raise ValueError("No unique top node!")
+        topnode = tops[0]
+        reached_nodes = self.to_node_set(rm[topnode.id])
+        if len(reached_nodes) == nodesize:
+            # print("All nodes already reachable, nothing to convert!")
+            return
+        edges_to_invert = set()
+        # at each step try to invert an edge to get more reachable nodes
+        while len(reached_nodes) != nodesize:
+            next_nodes = set()
+            # next_nodes = possible nodes reachable from reached_nodes if an
+            # edge was inverted
+            for fromnode in reached_nodes:
+                # nexts : all nodes that have an edge to the reachable node
+                # fromnode
+                nexts = {e.src for e in self.nodes[fromnode].incoming_edges}
+                next_nodes.update(nexts)
+            next_nodes.difference_update(reached_nodes)  # only unreached nodes
+            if len(next_nodes) == 0:
+                # no nodes found that can be reached with an inverted edge
+                # from a node from reached_nodes: i.e. there is no edge
+                # between reached and unreached nodes
+                # assert(cannot find edge from reached to unreached node or
+                # the other way around, remember that we invert edges later)
+                break
+            # find best next node  todo: don't store all, just current best?
+            expand_ability = dict()
+            for candidate in next_nodes:
+                # noinspection PyTypeChecker
+                expand_ability[candidate] = \
+                    len(self.to_node_set(l=rm[candidate]) - reached_nodes)
+                # expand ability: number of unreached nodes that can be
+                # reached from this node
+            # get the node with the most paths to unreached nodes so far:
+            # invert an edge from best_node to a reached_node
+            best_node, newsize = max(expand_ability.items(), key=lambda p: p[1])
+            assert(newsize > 0)  # todo can I assert this?
+            # from this best_node, choose an outgoing edge to a reached node
+            edge = None
+            for e in self.nodes[best_node].outgoing_edges:
+                if e.tgt in reached_nodes:
+                    edge = e
+                    break  # found an edge to be inverted!
+            assert(edge is not None)
+            edges_to_invert.add(edge)  # store edge, invert later
+            # if we invert directly accidentally reinvert later?
+            # add nodes reachable from best_node to the set of reached nodes
+            reached_nodes.update(self.to_node_set(rm[best_node]))
+            # todo are you sure this will always terminate?
+        # finished
+        # todo: do disconnected check earlier? don't invert anything if discon?
+        for edge in edges_to_invert:
+            print("{:>20}: Edge will be inverted: {} -{}-> {}".format(
+                self.id, edge.src, edge.lab, edge.tgt))  # debug
+            # todo check if already inverted!
+            src = edge.src
+            tgt = edge.tgt
+            self.nodes[src].outgoing_edges.remove(edge)
+            self.nodes[tgt].incoming_edges.remove(edge)
+            self.edges.remove(edge)
+            edge.normal = edge.lab
+            edge.lab += "-of"  # what if already inverted?
+            edge.src = tgt
+            edge.tgt = src
+            # edge.normalize(actions=["edges"])  not doing what I expected
+            self.nodes[tgt].outgoing_edges.add(edge)
+            self.nodes[src].incoming_edges.add(edge)
+            self.edges.add(edge)
+        if len(reached_nodes) != nodesize:
+            raise Warning("Possible disconnected graph - cannot reach all: "
+                          "Graph id = " + self.id)
+        # else: could compute reachability matrix again and check all nodes
+        # reachable
+        return
