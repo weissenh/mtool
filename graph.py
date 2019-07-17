@@ -17,6 +17,8 @@ import score.core;
 # for default values, we need to deal in the normalized values here.
 #
 ATTRIBUTE_DEFAULTS = {"remote": "false"}
+FLAVORS = {"dm": 0, "psd": 0, "eds": 1, "ucca": 1, "amr": 2}
+
 
 class Node(object):
 
@@ -67,8 +69,11 @@ class Node(object):
                 anchor["from"] = i;
                 anchor["to"] = j;
 
-        if self.anchors and input and "anchors" in actions:
-            for anchor in self.anchors: trim(anchor, input);
+        if self.anchors is not None and "anchors" in actions:
+            if len(self.anchors) > 0 and input:
+                for anchor in self.anchors: trim(anchor, input);
+            elif len(self.anchors) == 0:
+                self.anchors = None;    
         if "case" in actions:
             if self.label is not None:
                 self.label = str(self.label).lower();
@@ -76,18 +81,6 @@ class Node(object):
                 for i in range(len(self.properties)):
                     self.properties[i] = str(self.properties[i]).lower();
                     self.values[i] = str(self.values[i]).lower();
-
-    def anchoring(self):
-        #
-        # _fix_me_
-        # we should normalize further; see mtool issue #4
-        #
-        result = list();
-        if self.anchors is not None:
-            for span in self.anchors:
-                if "from" in span and "to" in span:
-                    result.append((span["from"], span["to"]));
-        return result;
 
     def compare(self, node):
         count1 = both = count2 = 0;
@@ -329,7 +322,7 @@ class Graph(object):
         self.input = None;
         self.nodes = [];
         self.edges = set();
-        self.flavor = flavor;
+        self.flavor = FLAVORS.get(framework) if flavor is None else flavor;
         self.framework = framework;
 
     def source(self, value = None):
@@ -356,9 +349,19 @@ class Graph(object):
     def add_edge(self, src, tgt, lab, normal = None,
                  attributes = None, values = None):
         edge = Edge(src, tgt, lab, normal, attributes, values)
+        source = self.find_node(src);
+        if source is None:
+            raise ValueError("Graph.add_edge(): graph #{}: "
+                             "invalid source node {}."
+                             "".format(self.id, src))
+        target = self.find_node(tgt);
+        if target is None:
+            raise ValueError("Graph.add_edge(): graph #{}: "
+                             "invalid target node {}."
+                             "".format(self.id, tgt))
         self.edges.add(edge)
-        self.find_node(src).outgoing_edges.add(edge)
-        self.find_node(tgt).incoming_edges.add(edge)
+        source.outgoing_edges.add(edge)
+        target.incoming_edges.add(edge)
         return edge
 
     def add_input(self, text, id = None, quiet = False):
@@ -406,7 +409,8 @@ class Graph(object):
                     if self.input.startswith(form, i):
                         m = len(form);
                     else:
-                        for old, new in {("‘", "`"), ("’", "'")}:
+                        for old, new in {("‘", "`"), ("’", "'"), ("`", "'"),
+                                         ("“", "\""), ("”", "\"")}:
                             form = form.replace(old, new);
                             if self.input.startswith(form, i):
                                 m = len(form);
@@ -456,7 +460,10 @@ class Graph(object):
                     for property, value in zip(node.properties, node.values):
                         properties.add((identity, property, value.lower()));
                 if node.anchors is not None:
-                    anchors.add(tuple([identity] + node.anchoring()));
+                    anchor = score.core.anchor(node);
+                    if graph.input:
+                        anchor = score.core.explode(graph.input, anchor);
+                    anchors.add((identity, anchor));
             for edge in graph.edges:
                 edges.add((identities[edge.src], identities[edge.tgt],
                            edge.lab));
@@ -552,7 +559,13 @@ class Graph(object):
                                edge.attributes, edge.values)
         if "tops" in json and json["tops"] is not None:
             for i in json["tops"]:
-                graph.find_node(i).is_top = True
+                node = graph.find_node(i)
+                if node is not None:
+                    node.is_top = True
+                else:
+                    raise ValueError("Graph.decode(): graph #{}: "
+                                     "invalid top node {}."
+                                     "".format(graph.id, i))
         return graph
 
     def dot(self, stream, ids = False, strings = False):

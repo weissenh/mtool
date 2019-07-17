@@ -93,6 +93,9 @@ iterations and up to 100,000 node pairing steps.
 Note that multi-valued use of the `--limit` option is only meaningful in conjunction
 with the MRP metric, and that setting either of the two values to `0` will disable the
 corresponding search component.
+Finally, the MRP scorer can parallelize evaluation: an option like `--cores 8` (on
+suitable hardware) will run eight `mtool` processes in parallel, which should reduce
+scoring time substantially.
 
 Analytics
 ---------
@@ -198,8 +201,8 @@ Contributors
 
 + Yuta Koreeda <koreyou@mac.com> (@koreyou)
 + Matthias Lindemann <mlinde@coli.uni-saarland.de> (@namednil)
-+ Milan Straka <straka@ufal.mff.cuni.cz> (@foxik)
 + Hiroaki Ozaki <taryou.ozk@gmail.com> (@taryou)
++ Milan Straka <straka@ufal.mff.cuni.cz> (@foxik)
 
 [![Build Status (Travis CI)](https://travis-ci.org/cfmrp/mtool.svg?branch=master)](https://travis-ci.org/cfmrp/mtool)
 [![Build Status (AppVeyor)](https://ci.appveyor.com/api/projects/status/github/cfmrp/mtool?svg=true)](https://ci.appveyor.com/project/danielh/mtool)

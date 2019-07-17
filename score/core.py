@@ -1,21 +1,17 @@
-from operator import itemgetter;
-
-
 #
 # _fix_me_
 # maybe use Unicode character classes instead, even if it likely would mean
 # many calls to match one-character regular expressions?
 #
-PUNCTUATION = \
-  {".", "?", "!", ";", ",", ":", "“", "\"", "”", "‘", "'", "’",
-   "(", ")", "[", "]", "{", "}", " ", "\t", "\n", "\f"};
-SPACE = {" ", "\t", "\n", "\f"};
+PUNCTUATION = frozenset(".?!;,:“\"”‘'’()[]{} \t\n\f")
+SPACE = frozenset(" \t\n\f")
 
 def intersect(golds, systems):
-  gold = {graph.id: graph for graph in golds};
-  system = {graph.id: graph for graph in systems};
-  for key in sorted(gold.keys() & system.keys()):
-    yield gold[key], system[key];
+  gold = {graph.id: graph for graph in golds}
+  for graph in systems:
+      gold_graph = gold.get(graph.id)
+      if gold_graph is not None:
+          yield gold_graph, graph
 
 def anchor(node):
   result = list();
@@ -27,7 +23,6 @@ def anchor(node):
 
 def explode(string, anchors, trim = PUNCTUATION):
   result = set();
-
   for anchor in anchors:
     start = end = None;
     if isinstance(anchor, tuple):
@@ -42,7 +37,6 @@ def explode(string, anchors, trim = PUNCTUATION):
       for i in range(start, end):
         if string[i] not in SPACE:
           result.add(i);
-
   return frozenset(result);
 
 def fscore(gold, system, correct):

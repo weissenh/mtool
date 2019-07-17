@@ -5,7 +5,8 @@ import validate.eds;
 import validate.sdp;
 import validate.ucca;
 from validate.utilities import report;
-
+
+
 def test(graph, actions, stream = sys.stderr):
   n = 0;
   if not isinstance(graph.id, str) or len(graph.id) == 0:
@@ -31,7 +32,7 @@ def test(graph, actions, stream = sys.stderr):
        graph.flavor == 2 and graph.framework not in {"amr"}:
     n += 1;
     report(graph,
-           "invalid Flavor ({}) framework: {}"
+           "invalid Flavor ({}) framework: ‘{}’"
            "".format(graph.flavor, graph.framework), stream = stream);
 
   if "input" in actions:
@@ -49,17 +50,25 @@ def test(graph, actions, stream = sys.stderr):
     #
     nodes = {node.id: node for node in graph.nodes};
     for edge in graph.edges:
-      if edge.src not in nodes:
+      if not isinstance(edge.src, int) or edge.src not in nodes:
         n += 1;
         report(graph,
                "invalid source",
-               node = node, edge = edge,
+               edge = edge,
                stream = stream);
-      if edge.tgt not in nodes:
+      if not isinstance(edge.tgt, int) or edge.tgt not in nodes:
         n += 1;
         report(graph,
                "invalid target",
-               node = node, edge = edge,
+               edge = edge,
+               stream = stream);
+      num_attrib = len(edge.attributes) if edge.attributes else 0;
+      num_values = len(edge.values) if edge.values else 0;
+      if num_attrib != num_values:
+        n += 1;
+        report(graph,
+               "unaligned ‘attributes’ vs. ‘values’",
+               edge = edge,
                stream = stream);
 
   sdp = {"ccd", "dm", "pas", "psd"};
