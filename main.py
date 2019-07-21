@@ -127,6 +127,7 @@ def main():
   parser.add_argument("output", nargs = "?",
                       type = argparse.FileType("w", encoding = ENCODING),
                       default = sys.stdout);
+  parser.add_argument("--markprops", action="store_true");  # only for amr write
   arguments = parser.parse_args();
 
   text = None;
@@ -336,7 +337,8 @@ def main():
               file=arguments.output)
         # todo: add more meta info? (time, ...)
         # todo: check w.r.t. issue #35 revertible read <-> write?
-        codec.amr.write(graph, stream=arguments.output)
+        codec.amr.write(graph, stream=arguments.output,
+                        mark_props=arguments.markprops)
 
   if arguments.overlay:
     for graph in overlays:

@@ -166,7 +166,8 @@ def read(fp, full = False, reify = False,
         yield graph, overlay;
 
 
-def write(g: Graph, stream):
+def write(g: Graph, stream, mark_props=False):
+    # mark_props if True, special marker for properties  _prop  or something
     # todo revertible? see https://github.com/cfmrp/mtool/issues/35
     # e.g. :wiki is lost during read in, node names kinda arbitrary for amr?
     # Note: no alignments in output, requires unique top node
@@ -187,13 +188,15 @@ def write(g: Graph, stream):
     visited_node2label = dict()
     firstcharcntr = Counter()
     nodestr, visited_node2label, firstcharcntr = get_node_string(node=topnode,
-        visted_node2label=visited_node2label, charcntr=firstcharcntr)
+         visted_node2label=visited_node2label, charcntr=firstcharcntr,
+         mark_props=mark_props)
     outstr = "("
     outstr += nodestr  # w / work-01
     intend = " " * 5
     outstr += get_string_for_outgoing_edges(graph=g, node=topnode,
         intend=intend, visited_node2label=visited_node2label,
-        charcntr=firstcharcntr, visited_edges=visited_edges)
+        charcntr=firstcharcntr, visited_edges=visited_edges,
+        mark_props=mark_props)
     print(outstr + ")\n", file=stream)
     # todo: this shouldn't happen (since prepare4dfsearch), change to assertion
     if not (visited_node2label.keys() == set(g.nodes)):
@@ -207,7 +210,8 @@ def write(g: Graph, stream):
     return
 
 
-def get_node_string(node, visted_node2label: dict, charcntr: Counter) -> tuple:
+def get_node_string(node, visted_node2label: dict, charcntr: Counter,
+                    mark_props: bool) -> tuple:
     # (1)   w  (seen before)  or
     # (2)   w / want-01  (not seen)  or
     # (3)   n / name :op1 "Pierre" :op2 "Vinken"
@@ -236,6 +240,8 @@ def get_node_string(node, visted_node2label: dict, charcntr: Counter) -> tuple:
                 # todo when to add " " around value?
                 # :op1 "Pierre"  but  :polarity -  and  :day 29
                 # todo: make sure prop val don't contain reserved char? \"
+                if mark_props:
+                    prop = prop + "_prop"
                 nodestr += " :" + prop + " "
                 if value.isdigit() or value == "-":  # :polarity -   :day 29
                     nodestr += value
@@ -246,7 +252,7 @@ def get_node_string(node, visted_node2label: dict, charcntr: Counter) -> tuple:
 
 def get_string_for_outgoing_edges(graph: Graph, node, intend: str,
                                   visited_node2label: dict, charcntr: Counter,
-                                  visited_edges: set) -> str:
+                                  visited_edges: set, mark_props: bool) -> str:
     # recursive function
     assert (node in visited_node2label)
     # todo: one line or multiline? if multiline which intend?
@@ -265,7 +271,7 @@ def get_string_for_outgoing_edges(graph: Graph, node, intend: str,
         s += " "
         nodestr, visited_node2label, firstcharcntr = get_node_string(
             node=target, visted_node2label=visited_node2label,
-            charcntr=charcntr)
+            charcntr=charcntr, mark_props=mark_props)
         if unvisited_target:
             s += "("
         s += nodestr   # e.g.  w  or  w / want-01  or  n /name :op1 "Hans"
@@ -274,6 +280,6 @@ def get_string_for_outgoing_edges(graph: Graph, node, intend: str,
             s += get_string_for_outgoing_edges(
                 graph=graph, node=target, intend=intend + " " * 6,
                 visited_node2label=visited_node2label, charcntr=charcntr,
-                visited_edges=visited_edges)
+                visited_edges=visited_edges, mark_props=mark_props)
             s += ")"  # + "\n"
     return s
