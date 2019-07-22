@@ -241,7 +241,7 @@ def get_node_string(node, visted_node2label: dict, charcntr: Counter,
                 # :op1 "Pierre"  but  :polarity -  and  :day 29
                 # todo: make sure prop val don't contain reserved char? \"
                 if mark_props:
-                    prop = prop + "_prop"
+                    prop = prop + "-prop"
                 nodestr += " :" + prop + " "
                 if value.isdigit() or value == "-":  # :polarity -   :day 29
                     nodestr += value
